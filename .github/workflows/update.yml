@@ -1,0 +1,38 @@
+# 매일 아침 인스타 새 게시물을 홈페이지에 반영 (컴퓨터 꺼져 있어도 GitHub 서버에서 자동 실행)
+name: 인스타 → 홈페이지 자동 반영
+
+on:
+  schedule:
+    - cron: "0 0,9 * * *"   # 한국시간 오전 9시, 오후 6시
+  workflow_dispatch:         # Actions 화면에서 "Run workflow" 로 바로 실행
+  push:
+    paths: ["site_config.json", "data/exclude.txt", "build_site.py"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pillow
+      - name: 홈페이지 만들기
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: python build_site.py
+      - name: 바뀐 내용 저장
+        run: |
+          git config user.name "homepage-bot"
+          git config user.email "homepage-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "인스타 게시물 자동 반영 $(date -u +%F)"
+          git push
