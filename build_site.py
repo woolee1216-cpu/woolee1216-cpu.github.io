@@ -244,7 +244,7 @@ header.top{background:var(--dark);color:#fff}
 header.top .wrap{display:flex;justify-content:space-between;align-items:center;height:60px}
 header.top a{text-decoration:none;font-weight:700}
 header.top nav a{font-weight:500;margin-left:16px;opacity:.85;font-size:15px}
-.hero{background:var(--dark);color:#fff;padding:56px 0 64px}
+.hero{background:var(--dark) center/cover no-repeat;color:#fff;padding:96px 0 104px;text-shadow:0 2px 8px #000a}
 .hero h1{font-size:clamp(28px,6vw,44px);margin:0 0 10px;line-height:1.25}
 .hero p{margin:0 0 24px;opacity:.85;font-size:17px}
 .btn{display:inline-block;padding:12px 20px;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;margin:4px 6px 4px 0}
@@ -361,8 +361,11 @@ def build_index(cfg: dict, posts: list[dict], blogs: list[dict]) -> str:
     mp = (f'<iframe class="map" loading="lazy" title="지도" src="https://www.google.com/maps?q={esc(mapq)}&output=embed"></iframe>'
           if mapq else "")
 
+    # 맨 위 배경: 인스타 최신 사진, 없으면 기본 사진
+    hero_img = posts[0]["image"] if posts and posts[0].get("image") else "hero_default.jpg"
+    hero_bg = f'background-image:linear-gradient(90deg,#000c 0%,#0008 55%,#0003 100%),url({esc(hero_img)})'
     body = f"""
-<div class="hero"><div class="wrap">
+<div class="hero" style="{hero_bg}"><div class="wrap">
 <h1>{esc(cfg['name'])}</h1><p>{esc(cfg['tagline'])}</p>{call}{book}
 </div></div>
 <section><div class="wrap"><h2>매장 소개</h2><p>{esc(cfg['description'])}</p></div></section>
@@ -436,8 +439,9 @@ def main() -> int:
         if p not in ordered:
             (POST_DIR / f"{p['id']}.html").unlink(missing_ok=True)
     # 대표 이미지(og.jpg): 가장 최근 사진
-    if ordered and ordered[0].get("image"):
-        (ROOT / "og.jpg").write_bytes((ROOT / ordered[0]["image"]).read_bytes())
+    og_src = ROOT / ordered[0]["image"] if ordered and ordered[0].get("image") else ROOT / "hero_default.jpg"
+    if og_src.exists():
+        (ROOT / "og.jpg").write_bytes(og_src.read_bytes())
 
     POST_DIR.mkdir(exist_ok=True)
     (ROOT / "index.html").write_text(build_index(cfg, ordered, blogs), encoding="utf-8")
