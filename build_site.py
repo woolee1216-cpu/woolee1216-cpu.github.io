@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data" / "posts.json"
 IMG_DIR = ROOT / "images"
 POST_DIR = ROOT / "posts"
+BLOG_DATA = ROOT / "data" / "blog.json"
 GRAPH = "https://graph.facebook.com/v21.0"
 MAX_FETCH = 200
 
@@ -106,6 +107,43 @@ def save_image(raw: bytes, path: Path) -> None:
     im.save(path, "JPEG", quality=82, optimize=True, progressive=True)
 
 
+# ---------------------------------------------------------------- 네이버 블로그 수집
+def fetch_blogs(cfg: dict) -> list[dict]:
+    """네이버 블로그 RSS에서 최신 글을 모은다. 실패하면 지난번 저장분을 쓴다."""
+    import urllib.request
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    old = json.loads(BLOG_DATA.read_text(encoding="utf-8")) if BLOG_DATA.exists() else []
+    got, ok = [], False
+    for b in cfg.get("naver_blogs", []):
+        try:
+            req = urllib.request.Request(f"https://rss.blog.naver.com/{b['id']}.xml", headers={"User-Agent": "Mozilla/5.0"})
+            root = ET.fromstring(urllib.request.urlopen(req, timeout=30).read())
+        except Exception as e:
+            print("블로그 조회 실패", b["id"], e)
+            got += [x for x in old if x.get("blog_id") == b["id"]]
+            continue
+        ok = True
+        for it in root.iter("item"):
+            desc = re.sub(r"<[^>]+>", " ", it.findtext("description") or "")
+            got.append({
+                "blog_id": b["id"],
+                "blog": b.get("name", b["id"]),
+                "title": (it.findtext("title") or "").strip(),
+                "link": (it.findtext("guid") or it.findtext("link") or "").strip(),
+                "date": parsedate_to_datetime(it.findtext("pubDate")).strftime("%Y-%m-%d"),
+                "summary": re.sub(r"\s+", " ", html.unescape(desc)).strip()[:120],
+            })
+    if not ok:
+        return old
+    got.sort(key=lambda x: x["date"], reverse=True)
+    BLOG_DATA.parent.mkdir(exist_ok=True)
+    BLOG_DATA.write_text(json.dumps(got, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"네이버 블로그 글 {len(got)}개")
+    return got
+
+
 # ---------------------------------------------------------------- 글 다듬기
 TAG_RE = re.compile(r"#[^\s#]+")
 
@@ -161,7 +199,9 @@ def abs_url(cfg: dict, path: str) -> str:
 
 # ---------------------------------------------------------------- 구글용 구조화 데이터
 def business_schema(cfg: dict) -> dict:
-    links = [v for v in cfg.get("links", {}).values() if filled(v)]
+    links = [v for k, v in cfg.get("links", {}).items() if filled(v) and k != "naver_review"]
+    links += [f"https://blog.naver.com/{b['id']}" for b in cfg.get("naver_blogs", [])
+              if f"https://blog.naver.com/{b['id']}" not in links]
     d = {
         "@context": "https://schema.org",
         "@type": ["TireShop", "AutoRepair"],
@@ -224,13 +264,19 @@ article{background:var(--card);border:1px solid var(--line);border-radius:12px;p
 article img{border-radius:8px;margin:0 auto 16px}
 article .body{white-space:pre-line}.tags{color:var(--muted);font-size:14px}
 .muted{color:var(--muted)}
+.blog a{display:block;text-decoration:none}.blog a:hover .card{border-color:var(--accent)}
+.blog small{color:var(--accent);font-weight:700}.blog h3{font-size:16px;line-height:1.45}
+.blog p{font-size:14px;margin-top:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.navbtns{margin-top:20px}.navbtns .btn{background:#03c75a}.navbtns .btn.line{background:transparent;color:var(--ink);border:1px solid var(--line)}
 """
 
 
 def page(cfg: dict, title: str, desc: str, body: str, path: str, prefix: str = "", extra_ld=None, og_img="og.jpg") -> str:
     ld = [business_schema(cfg)] + ([extra_ld] if extra_ld else [])
-    verify = (f'<meta name="google-site-verification" content="{esc(cfg["google_site_verification"])}">'
-              if cfg.get("google_site_verification") else "")
+    verify = "".join(f'<meta name="{n}" content="{esc(cfg[k])}">' for k, n in (
+        ("google_site_verification", "google-site-verification"),
+        ("naver_site_verification", "naver-site-verification"),
+        ("bing_site_verification", "msvalidate.01")) if filled(cfg.get(k)))
     canon = f'<link rel="canonical" href="{esc(abs_url(cfg, path))}">' if filled(cfg.get("site_url")) else ""
     og = abs_url(cfg, og_img)
     return f"""<!doctype html>
@@ -243,11 +289,12 @@ def page(cfg: dict, title: str, desc: str, body: str, path: str, prefix: str = "
 <meta property="og:type" content="website"><meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(desc[:155])}"><meta property="og:image" content="{esc(og)}">
 <meta property="og:locale" content="ko_KR">
+<link rel="alternate" type="application/rss+xml" title="{esc(cfg['name'])}" href="{prefix}rss.xml">
 <script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>
 <style>{CSS}</style>
 </head><body>
 <header class="top"><div class="wrap"><a href="{prefix}index.html">{esc(cfg['name'])}</a>
-<nav><a href="{prefix}index.html#services">작업</a><a href="{prefix}posts/index.html">작업사례</a><a href="{prefix}index.html#contact">오시는 길</a></nav></div></header>
+<nav><a href="{prefix}index.html#services">작업</a><a href="{prefix}posts/index.html">작업사례</a><a href="{prefix}index.html#reviews">후기</a><a href="{prefix}index.html#contact">오시는 길</a></nav></div></header>
 {body}
 {footer(cfg)}
 </body></html>"""
@@ -255,7 +302,7 @@ def page(cfg: dict, title: str, desc: str, body: str, path: str, prefix: str = "
 
 def footer(cfg: dict) -> str:
     names = {"instagram": "인스타그램", "facebook": "페이스북", "naver_place": "네이버 플레이스",
-             "google_maps": "구글 지도", "youtube": "유튜브"}
+             "naver_review": "네이버 리뷰", "naver_blog": "네이버 블로그", "google_maps": "구글 지도", "youtube": "유튜브"}
     links = " ".join(f'<a href="{esc(u)}" rel="noopener" target="_blank">{names.get(k, k)}</a>'
                      for k, u in cfg.get("links", {}).items() if filled(u))
     addr = esc(cfg["address"]) if filled(cfg.get("address")) else ""
@@ -270,11 +317,31 @@ def post_cards(cfg: dict, posts: list[dict], prefix: str) -> str:
     return '<div class="posts">' + "".join(out) + "</div>"
 
 
-def build_index(cfg: dict, posts: list[dict]) -> str:
+def ext(url: str, label: str, cls: str = "btn") -> str:
+    return f'<a class="{cls}" href="{esc(url)}" target="_blank" rel="noopener">{label}</a>' if filled(url) else ""
+
+
+def blog_section(cfg: dict, blogs: list[dict]) -> str:
+    links = cfg.get("links", {})
+    cards = "".join(
+        f'<a href="{esc(b["link"])}" target="_blank" rel="noopener"><div class="card"><small>{esc(b["blog"])} · {esc(b["date"])}</small>'
+        f'<h3>{esc(b["title"])}</h3><p>{esc(b["summary"])}</p></div></a>'
+        for b in blogs[: int(cfg.get("blog_posts_on_home", 6))])
+    grid = f'<div class="grid blog">{cards}</div>' if cards else ""
+    btns = (ext(links.get("naver_review"), "네이버 방문자 리뷰 보기")
+            + ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약·길찾기")
+            + ext(links.get("naver_blog"), "블로그 전체 보기", "btn line"))
+    return (f'<section id="reviews"><div class="wrap"><h2>고객 후기 · 블로그</h2>'
+            f'<p class="muted">네이버 블로그에 올린 작업 후기입니다. 새 글을 쓰면 홈페이지에도 자동으로 올라옵니다.</p>'
+            f'{grid}<div class="navbtns">{btns}</div></div></section>')
+
+
+def build_index(cfg: dict, posts: list[dict], blogs: list[dict]) -> str:
     phones = [p for p in cfg.get("phones", []) if filled(p)]
     call = f'<a class="btn" href="tel:{esc(phones[0])}">전화 문의 {esc(phones[0])}</a>' if phones else ""
-    naver = cfg["links"].get("naver_place")
-    book = f'<a class="btn ghost" href="{esc(naver)}" target="_blank" rel="noopener">네이버 예약·리뷰</a>' if filled(naver) else ""
+    links = cfg["links"]
+    book = (ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약", "btn ghost")
+            + ext(links.get("naver_review"), "네이버 리뷰", "btn ghost"))
     svc = "".join(f'<div class="card"><h3>{esc(s["title"])}</h3><p>{esc(s["text"])}</p></div>' for s in cfg["services"])
 
     recent = posts[: int(cfg.get("posts_on_home", 12))]
@@ -283,7 +350,8 @@ def build_index(cfg: dict, posts: list[dict]) -> str:
 
     info = []
     if filled(cfg.get("address")):
-        info.append(f"<dt>주소</dt><dd>{esc(cfg['address'])}</dd>")
+        jibun = f'<br><span class="muted">(지번) {esc(cfg["address_jibun"])}</span>' if filled(cfg.get("address_jibun")) else ""
+        info.append(f"<dt>주소</dt><dd>{esc(cfg['address'])}{jibun}</dd>")
     if phones:
         info.append("<dt>전화</dt><dd>" + "<br>".join(f'<a href="tel:{esc(p)}">{esc(p)}</a>' for p in phones) + "</dd>")
     hours = [h for h in cfg.get("hours", []) if filled(h.get("time"))]
@@ -300,6 +368,7 @@ def build_index(cfg: dict, posts: list[dict]) -> str:
 <section><div class="wrap"><h2>매장 소개</h2><p>{esc(cfg['description'])}</p></div></section>
 <section id="services"><div class="wrap"><h2>주요 작업</h2><div class="grid">{svc}</div></div></section>
 <section><div class="wrap"><h2>최근 작업사례</h2>{posts_html}</div></section>
+{blog_section(cfg, blogs)}
 <section id="contact"><div class="wrap"><h2>오시는 길 · 문의</h2>
 <div class="grid"><dl class="info card">{''.join(info) or '<dd class="muted">준비 중</dd>'}</dl>{mp}</div></div></section>"""
     return page(cfg, f"{cfg['name']} | {cfg['tagline']}", cfg["description"], body, "")
@@ -340,11 +409,25 @@ def build_sitemap(cfg: dict, posts: list[dict]) -> str:
     return f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{rows}</urlset>'
 
 
+def build_rss(cfg: dict, posts: list[dict]) -> str:
+    """네이버 서치어드바이저 RSS 제출용."""
+    from email.utils import format_datetime
+    items = []
+    for p in posts[:50]:
+        u = esc(abs_url(cfg, f"posts/{p['id']}.html"))
+        items.append(f"<item><title>{esc(post_title(p, cfg))}</title><link>{u}</link><guid>{u}</guid>"
+                     f"<pubDate>{format_datetime(post_date(p))}</pubDate><description>{esc(post_body(p)[0][:300])}</description></item>")
+    return (f'<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>{esc(cfg["name"])}</title>'
+            f'<link>{esc(abs_url(cfg, ""))}</link><description>{esc(cfg["description"])}</description>'
+            f'<language>ko</language>{"".join(items)}</channel></rss>')
+
+
 # ---------------------------------------------------------------- 실행
 def main() -> int:
     cfg = json.loads((ROOT / "site_config.json").read_text(encoding="utf-8"))
     posts = json.loads(DATA.read_text(encoding="utf-8")) if DATA.exists() else {}
     fetch_instagram(posts)
+    blogs = fetch_blogs(cfg)
     DATA.parent.mkdir(exist_ok=True)
     DATA.write_text(json.dumps(posts, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -357,7 +440,7 @@ def main() -> int:
         (ROOT / "og.jpg").write_bytes((ROOT / ordered[0]["image"]).read_bytes())
 
     POST_DIR.mkdir(exist_ok=True)
-    (ROOT / "index.html").write_text(build_index(cfg, ordered), encoding="utf-8")
+    (ROOT / "index.html").write_text(build_index(cfg, ordered, blogs), encoding="utf-8")
     (POST_DIR / "index.html").write_text(build_post_list(cfg, ordered), encoding="utf-8")
     for p in ordered:
         (POST_DIR / f"{p['id']}.html").write_text(build_post(cfg, p), encoding="utf-8")
@@ -368,6 +451,8 @@ def main() -> int:
         (ROOT / "sitemap.xml").write_text(sm, encoding="utf-8")
         robots += f"Sitemap: {abs_url(cfg, 'sitemap.xml')}\n"
     (ROOT / "robots.txt").write_text(robots, encoding="utf-8")
+    if filled(cfg.get("site_url")):
+        (ROOT / "rss.xml").write_text(build_rss(cfg, ordered), encoding="utf-8")
     (ROOT / ".nojekyll").write_text("", encoding="utf-8")
     print(f"홈페이지 생성 완료: 게시물 {len(ordered)}개")
     return 0
