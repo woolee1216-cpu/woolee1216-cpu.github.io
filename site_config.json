@@ -6,18 +6,17 @@
   "tagline": "남양주 수입차·국산차 타이어 교체, 종합정비, 오프로드 튜닝",
   "site_url": "https://woolee1216-cpu.github.io",
 
-  "address": "[ ]",
+  "address": "경기도 남양주시 진접읍 금곡리 793",
   "address_locality": "남양주시",
   "address_region": "경기도",
   "postal_code": "",
   "latitude": "",
   "longitude": "",
 
-  "phones": ["[ ]"],
+  "phones": ["010-8673-1612"],
   "hours": [
-    {"days": "월~금", "time": "[ ]"},
-    {"days": "토요일", "time": "[ ]"},
-    {"days": "일요일", "time": "[ ]"}
+    {"days": "평일", "time": "오후 8시까지"},
+    {"days": "공휴일", "time": "오후 4시까지 (명절 당일 휴무)"}
   ],
   "hours_schema": [],
 
