@@ -29,7 +29,7 @@ DATA = ROOT / "data" / "posts.json"
 IMG_DIR = ROOT / "images"
 POST_DIR = ROOT / "posts"
 BLOG_DATA = ROOT / "data" / "blog.json"
-BLOG_IMG_MAX = 60  # 최신 블로그 글 몇 개까지 사진을 받아둘지
+BLOG_IMG_MAX = 30  # 블로그마다 최신 글 몇 개까지 사진을 받아둘지
 GRAPH = "https://graph.facebook.com/v21.0"
 MAX_FETCH = 200
 
@@ -140,9 +140,11 @@ def fetch_blogs(cfg: dict) -> list[dict]:
         return old
     got.sort(key=lambda x: x["date"], reverse=True)
     old_img = {x["link"]: x.get("image", "") for x in old}
-    for i, b in enumerate(got):
+    seen: dict[str, int] = {}
+    for b in got:
+        n = seen[b["blog_id"]] = seen.get(b["blog_id"], 0) + 1
         b["image"] = old_img.get(b["link"], "")
-        if not b["image"] and i < BLOG_IMG_MAX:
+        if not b["image"] and n <= BLOG_IMG_MAX:
             b["image"] = fetch_blog_image(b)
     BLOG_DATA.parent.mkdir(exist_ok=True)
     BLOG_DATA.write_text(json.dumps(got, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -340,11 +342,16 @@ def footer(cfg: dict) -> str:
 
 def work_items(cfg: dict, posts: list[dict], blogs: list[dict]) -> list[dict]:
     """작업사례 목록 = 인스타 게시물(홈페이지 안 페이지) + 사진 있는 블로그 글(블로그로 연결)."""
-    items = [{"date": post_date(p).strftime("%Y-%m-%d"), "title": post_title(p, cfg), "image": p.get("image", ""),
-              "href": f"posts/{p['id']}.html", "ext": False} for p in posts]
-    items += [{"date": b["date"], "title": b["title"], "image": b["image"], "href": b["link"], "ext": True}
-              for b in blogs if b.get("image")]
-    return sorted(items, key=lambda x: x["date"], reverse=True)
+    # 인스타·블로그별로 최신순 줄을 만든 뒤 한 개씩 번갈아 섞음 (한 곳만 몰려 나오지 않게)
+    lanes = [[{"date": post_date(p).strftime("%Y-%m-%d"), "title": post_title(p, cfg), "image": p.get("image", ""),
+               "href": f"posts/{p['id']}.html", "ext": False} for p in posts]]
+    for bl in cfg.get("naver_blogs", []):
+        lanes.append([{"date": b["date"], "title": b["title"], "image": b["image"], "href": b["link"], "ext": True}
+                      for b in blogs if b.get("image") and b["blog_id"] == bl["id"]])
+    items = []
+    for row in range(max(map(len, lanes))):
+        items += sorted((ln[row] for ln in lanes if row < len(ln)), key=lambda x: x["date"], reverse=True)
+    return items
 
 
 def post_cards(cfg: dict, items: list[dict], prefix: str) -> str:
@@ -361,11 +368,16 @@ def ext(url: str, label: str, cls: str = "btn") -> str:
     return f'<a class="{cls}" href="{esc(url)}" target="_blank" rel="noopener">{label}</a>' if filled(url) else ""
 
 
+def blog_buttons(cfg: dict) -> str:
+    return "".join(ext(f"https://blog.naver.com/{b['id']}", f"블로그 · {esc(b.get('name', b['id']))}", "btn line")
+                   for b in cfg.get("naver_blogs", []))
+
+
 def blog_section(cfg: dict) -> str:
     links = cfg.get("links", {})
     btns = (ext(links.get("naver_review"), "네이버 방문자 리뷰 보기")
             + ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약·길찾기")
-            + ext(links.get("naver_blog"), "블로그 전체 보기", "btn line"))
+            + blog_buttons(cfg))
     return (f'<section id="reviews"><div class="wrap"><h2>고객 후기 · 블로그</h2>'
             f'<p class="muted">방문 고객 리뷰는 네이버에서 확인하세요. 블로그에 새 작업 후기를 쓰면 위 작업사례에도 자동으로 올라옵니다.</p>'
             f'<div class="navbtns">{btns}</div></div></section>')
@@ -434,9 +446,9 @@ def build_post(cfg: dict, p: dict) -> str:
 
 def build_post_list(cfg: dict, posts: list[dict], blogs: list[dict]) -> str:
     items = work_items(cfg, posts, blogs)
-    more = ext(cfg.get("links", {}).get("naver_blog"), "블로그에서 더 보기")
+    more = blog_buttons(cfg)
     body = (f'<div class="wrap"><section><h2>작업사례</h2>{post_cards(cfg, items, "../") if items else "<p>준비 중</p>"}'
-            f'<p style="margin-top:16px">{more}</p></section></div>')
+            f'<div class="navbtns">{more}</div></section></div>')
     return page(cfg, f"작업사례 | {cfg['name']}", f"{cfg['name']} 타이어 교체·정비·오프로드 튜닝 작업사례 모음", body, "posts/index.html", "../")
 
 
