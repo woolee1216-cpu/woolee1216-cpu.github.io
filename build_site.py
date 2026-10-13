@@ -262,9 +262,8 @@ def business_schema(cfg: dict) -> dict:
 
 # ---------------------------------------------------------------- HTML 조각
 CSS = """
-:root{--bg:#f6f5f2;--card:#fff;--ink:#1b1b1b;--muted:#666;--line:#e3e0da;--accent:#c8501e;--dark:#161616}
-@media (prefers-color-scheme:dark){:root{--bg:#121212;--card:#1c1c1c;--ink:#eee;--muted:#a3a3a3;--line:#2c2c2c;--dark:#0a0a0a}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.65}
+:root{--bg:#141414;--bg2:#1b1b1b;--card:#222;--ink:#f0f0f0;--muted:#a9a9a9;--line:#333;--accent:#e2571e;--dark:#0d0d0d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='48' viewBox='0 0 80 48'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.045' stroke-width='7' stroke-linecap='round'%3E%3Cpath d='M4 4 L20 24 L4 44'/%3E%3Cpath d='M44 4 L60 24 L44 44'/%3E%3C/g%3E%3C/svg%3E");color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.65}
 a{color:inherit}img{max-width:100%;display:block}
 .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
 header.top{background:var(--dark);color:#fff}
@@ -276,17 +275,20 @@ header.top nav a{font-weight:500;margin-left:16px;opacity:.85;font-size:15px}
 .hero p{margin:0 0 24px;opacity:.85;font-size:17px}
 .btn{display:inline-block;padding:12px 20px;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;margin:4px 6px 4px 0}
 .btn.ghost{background:transparent;border:1px solid #fff6}
-section{padding:48px 0}h2{font-size:26px;margin:0 0 20px}
+section{padding:56px 0}section:nth-of-type(even){background:linear-gradient(#1b1b1bee,#1b1b1bee)}
+h2{font-size:26px;margin:0 0 22px;padding-left:14px;border-left:5px solid var(--accent);line-height:1.2}
+header.top{border-bottom:3px solid var(--accent)}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:12px;padding:20px}
 .card h3{margin:0 0 6px;font-size:18px}.card p{margin:0;color:var(--muted)}
 .posts{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
-.posts a{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none}
+.posts a{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-decoration:none;transition:transform .15s,border-color .15s}
+.posts a:hover{transform:translateY(-3px);border-color:var(--accent)}
 .posts img{aspect-ratio:4/5;object-fit:cover;width:100%}
 .posts span{display:block;padding:8px 10px;font-size:14px;line-height:1.4;height:3.6em;overflow:hidden}
 .info dt{font-weight:700;margin-top:12px}.info dd{margin:2px 0 0}
 .map{width:100%;height:320px;border:0;border-radius:12px}
-footer{background:var(--dark);color:#bbb;padding:28px 0;font-size:14px}footer a{margin-right:14px}
+footer{background:var(--dark);border-top:3px solid var(--accent);color:#bbb;padding:28px 0;font-size:14px}footer a{margin-right:14px}
 article{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin:24px 0}
 article img{border-radius:8px;margin:0 auto 16px}
 article .body{white-space:pre-line}.tags{color:var(--muted);font-size:14px}
