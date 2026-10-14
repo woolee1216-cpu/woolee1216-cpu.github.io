@@ -291,6 +291,8 @@ def business_schema(cfg: dict) -> dict:
         }
     if filled(cfg.get("latitude")) and filled(cfg.get("longitude")):
         d["geo"] = {"@type": "GeoCoordinates", "latitude": cfg["latitude"], "longitude": cfg["longitude"]}
+    if filled(cfg.get("founding_year")):
+        d["foundingDate"] = cfg["founding_year"]
     if cfg.get("hours_schema"):
         d["openingHours"] = cfg["hours_schema"]
     return d
