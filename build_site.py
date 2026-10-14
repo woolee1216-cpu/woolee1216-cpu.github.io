@@ -392,7 +392,7 @@ def footer(cfg: dict) -> str:
     return f'<footer><div class="wrap"><p>{links}</p><p>{esc(cfg["name"])} {addr}</p></div></footer>'
 
 
-SHORT_NAME_RE = re.compile(r"타이어\s?게러지(?!\s?모터스)")
+SHORT_NAME_RE = re.compile(r"타이어\s?게러지(\s?모터스)?")
 
 
 def full_name(t: str) -> str:
