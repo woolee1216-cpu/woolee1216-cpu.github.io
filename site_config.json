@@ -74,15 +74,15 @@
   "naver_blogs": [
     {
       "id": "tg_shop",
-      "name": "TG_SHOP"
+      "name": "타이어게러지모터스 · 작업후기"
     },
     {
       "id": "tiregarage",
-      "name": "타이어 게러지"
+      "name": "타이어게러지모터스 · 튜닝"
     },
     {
       "id": "wowlee1216",
-      "name": "TIREGARAGEMOTORS2011"
+      "name": "타이어게러지모터스 · 소식"
     }
   ],
   "blog_posts_on_home": 6,

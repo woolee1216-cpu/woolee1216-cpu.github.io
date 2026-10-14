@@ -392,13 +392,21 @@ def footer(cfg: dict) -> str:
     return f'<footer><div class="wrap"><p>{links}</p><p>{esc(cfg["name"])} {addr}</p></div></footer>'
 
 
+SHORT_NAME_RE = re.compile(r"타이어\s?게러지(?!\s?모터스)")
+
+
+def full_name(t: str) -> str:
+    """블로그 제목의 '타이어게러지'를 상호 '타이어게러지모터스'로 통일해 보여줌."""
+    return SHORT_NAME_RE.sub("타이어게러지모터스", t)
+
+
 def work_items(cfg: dict, posts: list[dict], blogs: list[dict]) -> list[dict]:
     """작업사례 목록 = 인스타 게시물(홈페이지 안 페이지) + 사진 있는 블로그 글(블로그로 연결)."""
     # 인스타·블로그별로 최신순 줄을 만든 뒤 한 개씩 번갈아 섞음 (한 곳만 몰려 나오지 않게)
     lanes = [[{"date": post_date(p).strftime("%Y-%m-%d"), "title": post_title(p, cfg), "image": p.get("image", ""),
                "href": f"posts/{p['id']}.html", "ext": False} for p in posts]]
     for bl in cfg.get("naver_blogs", []):
-        lanes.append([{"date": b["date"], "title": b["title"], "image": b["image"], "href": b["link"], "ext": True}
+        lanes.append([{"date": b["date"], "title": full_name(b["title"]), "image": b["image"], "href": b["link"], "ext": True}
                       for b in blogs if b.get("image") and b["blog_id"] == bl["id"]])
     items = []
     for row in range(max(map(len, lanes))):
@@ -442,7 +450,7 @@ def ext(url: str, label: str, cls: str = "btn") -> str:
 
 
 def blog_buttons(cfg: dict) -> str:
-    return "".join(ext(f"https://blog.naver.com/{b['id']}", f"블로그 · {esc(b.get('name', b['id']))}", "btn line")
+    return "".join(ext(f"https://blog.naver.com/{b['id']}", f"블로그 {esc(b.get('name', b['id']))}", "btn line")
                    for b in cfg.get("naver_blogs", []))
 
 
