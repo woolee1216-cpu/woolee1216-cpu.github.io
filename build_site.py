@@ -277,6 +277,7 @@ header.top nav a{font-weight:500;margin-left:16px;opacity:.85;font-size:15px}
 .hero p{margin:0 0 24px;opacity:.85;font-size:17px}
 .btn{display:inline-block;padding:12px 20px;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;margin:4px 6px 4px 0}
 .btn.ghost{background:transparent;border:1px solid #fff6}
+.calls{margin:16px 0 4px}
 section{padding:56px 0}section:nth-of-type(even){background:linear-gradient(#1b1b1bee,#1b1b1bee)}
 h2{font-size:26px;margin:0 0 22px;padding-left:14px;border-left:5px solid var(--accent);line-height:1.2}
 header.top{border-bottom:3px solid var(--accent)}
@@ -385,7 +386,7 @@ def blog_section(cfg: dict) -> str:
 
 def build_index(cfg: dict, posts: list[dict], blogs: list[dict]) -> str:
     phones = [p for p in cfg.get("phones", []) if filled(p)]
-    call = f'<a class="btn" href="tel:{esc(phones[0])}">전화 문의 {esc(phones[0])}</a>' if phones else ""
+    call = ('<div class="calls">' + "".join(f'<a class="btn" href="tel:{esc(p)}">📞 {esc(p)}</a>' for p in phones) + "</div>") if phones else ""
     links = cfg["links"]
     book = (ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약", "btn ghost")
             + ext(links.get("naver_review"), "네이버 리뷰", "btn ghost"))
