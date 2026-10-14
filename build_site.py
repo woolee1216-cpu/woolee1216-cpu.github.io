@@ -466,7 +466,9 @@ def blog_section(cfg: dict) -> str:
 
 def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dict]) -> str:
     phones = [p for p in cfg.get("phones", []) if filled(p)]
-    call = ('<div class="calls">' + "".join(f'<a class="btn" href="tel:{esc(p)}">📞 {esc(p)}</a>' for p in phones) + "</div>") if phones else ""
+    labels = cfg.get("phone_labels", [])
+    named = [(labels[i] + " " if i < len(labels) and filled(labels[i]) else "", p) for i, p in enumerate(phones)]
+    call = ('<div class="calls">' + "".join(f'<a class="btn" href="tel:{esc(p)}">📞 {esc(n)}{esc(p)}</a>' for n, p in named) + "</div>") if phones else ""
     links = cfg["links"]
     book = (ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약", "btn ghost")
             + ext(links.get("naver_review"), "네이버 리뷰", "btn ghost"))
@@ -486,7 +488,7 @@ def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dic
         jibun = f'<br><span class="muted">(지번) {esc(cfg["address_jibun"])}</span>' if filled(cfg.get("address_jibun")) else ""
         info.append(f"<dt>주소</dt><dd>{esc(cfg['address'])}{jibun}</dd>")
     if phones:
-        info.append("<dt>전화</dt><dd>" + "<br>".join(f'<a href="tel:{esc(p)}">{esc(p)}</a>' for p in phones) + "</dd>")
+        info.append("<dt>전화</dt><dd>" + "<br>".join(f'{esc(n)}<a href="tel:{esc(p)}">{esc(p)}</a>' for n, p in named) + "</dd>")
     hours = [h for h in cfg.get("hours", []) if filled(h.get("time"))]
     if hours:
         info.append("<dt>영업시간</dt><dd>" + "<br>".join(f"{esc(h['days'])} {esc(h['time'])}" for h in hours) + "</dd>")
