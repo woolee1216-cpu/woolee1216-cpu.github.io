@@ -466,6 +466,17 @@ def blog_section(cfg: dict) -> str:
             f'<div class="navbtns">{btns}</div></div></section>')
 
 
+def latest_photo(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dict]) -> str:
+    """가장 최근에 올린 사진: 인스타 게시물·블로그 글 중 최신 → 없으면 최신 릴스 커버 → 기본 사진."""
+    for it in work_items(cfg, posts, blogs):
+        if it.get("image") and (ROOT / it["image"]).exists():
+            return it["image"]
+    for r in reels:
+        if r.get("image"):
+            return r["image"]
+    return "hero_default.jpg"
+
+
 def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dict]) -> str:
     phones = [p for p in cfg.get("phones", []) if filled(p)]
     labels = cfg.get("phone_labels", [])
@@ -499,7 +510,7 @@ def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dic
           if mapq else "")
 
     # 맨 위 배경: 인스타 최신 사진, 없으면 기본 사진
-    hero_img = posts[0]["image"] if posts and posts[0].get("image") else "hero_default.jpg"
+    hero_img = latest_photo(cfg, posts, blogs, reels)  # 매일 2번 빌드 때마다 최신 사진으로 바뀜
     hero_bg = f'background-image:linear-gradient(90deg,#000c 0%,#0008 55%,#0003 100%),url({esc(hero_img)})'
     body = f"""
 <div class="hero" style="{hero_bg}"><div class="wrap">
@@ -584,12 +595,12 @@ def main() -> int:
     for p in posts.values():  # 제외된 게시물의 예전 페이지 정리
         if p not in ordered:
             (POST_DIR / f"{p['id']}.html").unlink(missing_ok=True)
-    # 대표 이미지(og.jpg): 가장 최근 사진
-    og_src = ROOT / ordered[0]["image"] if ordered and ordered[0].get("image") else ROOT / "hero_default.jpg"
-    if og_src.exists():
-        (ROOT / "og.jpg").write_bytes(og_src.read_bytes())
 
     reels = load_reels(posts)
+    # 대표 이미지(og.jpg, 카톡 미리보기): 가장 최근 사진
+    og_src = ROOT / latest_photo(cfg, ordered, blogs, reels)
+    if og_src.exists():
+        (ROOT / "og.jpg").write_bytes(og_src.read_bytes())
     POST_DIR.mkdir(exist_ok=True)
     REEL_DIR.mkdir(exist_ok=True)
     (ROOT / "index.html").write_text(build_index(cfg, ordered, blogs, reels), encoding="utf-8")
