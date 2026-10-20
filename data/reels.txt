@@ -1,5 +1,7 @@
 # 홈페이지 "릴스" 칸에 보일 인스타 릴스 목록 (위가 최신). 형식: 코드 조회수
 # 새 릴스는 맨 위에 한 줄 추가. 안 보이게 하려면 data/exclude.txt 에 코드 추가.
+DethhdsBvwY 0
+Deq-ktqvpA- 0
 DeZGjCUvMCb 637
 DeWIaCUgu1M 2691
 DeQ7VQbBtxc 5727
