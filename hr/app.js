@@ -251,7 +251,7 @@
     const opinionQs = s.questions.filter(q => q.opinion);
     const ops = [];
     resps.forEach(r => opinionQs.forEach(q => { const v = r.answers[q.id]; if (v) ops.push({ who: profiles.find(p => p.id === r.user_id), q, v }); }));
-    // 근무 의향 질문: 보기 중 뒤의 2개(잘 모르겠다 / 다른 길 고민)를 고르면 면담 대상으로 표시
+    // 근무 의향 질문(retention): 보기 중 뒤의 2개(뒷좌석 / 휴게소)를 고르면 면담 대상으로 표시
     const choiceQ = s.questions.find(q => q.retention) || s.questions.find(q => q.type === 'choice');
     const worryOpts = choiceQ ? (choiceQ.options || []).slice(-2) : [];
     const worry = choiceQ ? resps.filter(r => worryOpts.includes(r.answers[choiceQ.id])) : [];
@@ -269,7 +269,7 @@
         <div class="card"><h2>미제출 직원 (${notDone.length})</h2>
           ${notDone.length ? `<table>${notDone.map(p => `<tr><td>${h(p.name)}</td><td class="muted">${h(p.dept || '')} ${h(p.position || '')}</td></tr>`).join('')}</table>`
             : '<p class="muted">모두 제출했습니다 👏</p>'}
-          ${worry.length ? `<div class="note" style="margin:14px 0 0">⚠ 1년 뒤 모습 "${worryOpts.map(h).join(' / ')}" 선택: <b>${worry.map(r => h(profiles.find(p => p.id === r.user_id)?.name)).join(', ')}</b> — 면담을 권합니다.</div>` : ''}
+          ${worry.length ? `<div class="note" style="margin:14px 0 0">⚠ "${choiceQ.label.length > 20 ? '내 자리' : h(choiceQ.label)}" 질문에 ${worryOpts.map(o => '"' + h(o.split(' — ')[0]) + '"').join(' / ')} 선택: <b>${worry.map(r => h(profiles.find(p => p.id === r.user_id)?.name)).join(', ')}</b> — 면담을 권합니다.</div>` : ''}
         </div>
         <div class="card"><h2>직원 의견·건의 (${ops.length})</h2>
           ${ops.length ? ops.slice(0, 8).map(o => `<div style="margin-bottom:10px"><div class="small muted">${h(o.who?.name)} · ${h(o.q.label)}</div><div class="answer">${h(o.v)}</div></div>`).join('')
@@ -576,7 +576,7 @@
         <div class="tile"><div class="k">연간 등급</div><div class="v">${gradeOf(admY) || '–'}</div></div>
       </div>
       <div class="card"><h2>월별 점수 추이</h2>${chart(rows)}</div>
-      <div class="card tbl-wrap"><h2>월별 요약</h2><table><tr><th>월</th><th>제출</th><th class="num">자기평가</th><th class="num">관리자평가</th><th>등급</th><th>1년 뒤 모습</th><th>관리자 코멘트</th></tr>
+      <div class="card tbl-wrap"><h2>월별 요약</h2><table><tr><th>월</th><th>제출</th><th class="num">자기평가</th><th class="num">관리자평가</th><th>등급</th><th>내 자리 (근무 의향)</th><th>관리자 코멘트</th></tr>
         ${rows.filter(x => x.s || x.ev).map(x => `<tr><td>${+x.m.slice(5)}월</td><td>${x.r ? '✓' : '<span class="muted">✗</span>'}</td>
           <td class="num">${f1(x.self)}</td><td class="num">${f1(x.adm)}</td><td>${x.ev?.grade ? `<span class="grade">${x.ev.grade}</span>` : ''}</td>
           <td class="small">${x.r && choiceQ(x.s) ? h(x.r.answers[choiceQ(x.s).id] || '') : ''}</td><td class="small">${h(x.ev?.comment || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">기록 없음</td></tr>'}
