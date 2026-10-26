@@ -9,15 +9,14 @@
   // 기본 질문 (새 설문을 만들 때 이전 달이 없으면 이것을 사용)
   const DEFAULT_QUESTIONS = [
     { id: 'q1', type: 'score',  label: '이번 달 나의 업무 성과는 어땠나요?', required: true },
-    { id: 'q2', type: 'score',  label: '이번 달 근무 만족도는?', required: true },
     { id: 'q3', type: 'score',  label: '동료들과의 협업은 원활했나요?', required: true },
     { id: 'q4', type: 'text',   label: '이번 달 주요 업무와 성과를 적어주세요.', required: true },
     { id: 'q5', type: 'text',   label: '업무 중 어려웠던 점 / 개선이 필요한 점', required: false, opinion: true },
     { id: 'q6', type: 'text',   label: '회사(대표)에게 건의하고 싶은 의견', required: false, opinion: true },
-    { id: 'q7', type: 'text',   label: '다음 달 목표', required: true },
-    { id: 'q8', type: 'choice', label: '앞으로도 우리 회사에서 계속 일할 의향이 있나요?', required: true,
-      options: ['매우 그렇다', '그렇다', '보통', '고민 중', '아니다'] },
-    { id: 'q9', type: 'text',   label: '받고 싶은 교육이나 필요한 지원이 있다면?', required: false, opinion: true },
+    { id: 'q7', type: 'text',   label: '다음 달에 진행했으면 하는 업무 방향이나 해야 할 일', required: true },
+    { id: 'q8', type: 'choice', label: '1년 뒤, 우리 회사에서의 내 모습은 어떨 것 같나요?', required: true, retention: true,
+      options: ['더 큰 역할을 맡고 있을 것 같다', '지금 일을 더 능숙하게 하고 있을 것 같다', '잘 모르겠다', '다른 길을 고민하고 있을 것 같다'] },
+    { id: 'q9', type: 'text',   label: '우리 회사에 아직 부족해서 함께 채워나가야 할 점이 있다면?', required: false, opinion: true },
   ];
 
   // ---------------------------------------------------------- Supabase
@@ -225,16 +224,16 @@
         status: i === 3 ? 'open' : 'closed', deadline: `${m}-${i === 3 ? '31' : '30'}`, created_at: `${m}-20T00:00:00Z`,
       }));
       const texts = {
-        s1: ['오프로드 리프트업 6건, 타이어 교체 40여 건 처리', '리프트 장비 노후로 작업 시간이 길어짐', '정비 공구 추가 구매 요청드립니다', '신입 교육 체계 만들기', '매우 그렇다', '얼라인먼트 장비 교육'],
-        s2: ['온라인 문의 응대 및 견적 120건, 계약 18건', '주말 문의가 몰려 응대가 늦어짐', '주말 근무 순번제를 제안합니다', '재구매 고객 관리 시작', '그렇다', '세무·견적 프로그램 교육'],
-        s3: ['타이어 탈착·밸런스 보조, 고객 차량 입출고', '작업 순서를 아직 잘 모르겠음', '선배와 함께하는 시간이 더 있으면 좋겠습니다', '휠 얼라인먼트 혼자 해보기', '고민 중', '기초 정비 교육'],
+        s1: ['오프로드 리프트업 6건, 타이어 교체 40여 건 처리', '리프트 장비 노후로 작업 시간이 길어짐', '정비 공구 추가 구매 요청드립니다', '신입 교육 체계 만들기', '더 큰 역할을 맡고 있을 것 같다', '정비 매뉴얼 정리'],
+        s2: ['온라인 문의 응대 및 견적 120건, 계약 18건', '주말 문의가 몰려 응대가 늦어짐', '주말 근무 순번제를 제안합니다', '재구매 고객 관리 시작', '지금 일을 더 능숙하게 하고 있을 것 같다', '견적 프로그램 정리'],
+        s3: ['타이어 탈착·밸런스 보조, 고객 차량 입출고', '작업 순서를 아직 잘 모르겠음', '선배와 함께하는 시간이 더 있으면 좋겠습니다', '휠 얼라인먼트 혼자 해보기', '잘 모르겠다', '신입 교육 체계'],
       };
       const sc = { s1: [[5, 4, 5], [4, 4, 5], [5, 5, 4]], s2: [[4, 3, 4], [4, 4, 4], [5, 4, 4]], s3: [[3, 3, 3], [3, 2, 3], [4, 3, 4]] };
       ['s1', 's2', 's3'].forEach(u => months.forEach((m, i) => {
         if (i === 3 && u !== 's1') return; // 10월은 김정비만 제출
         const s = sc[u][Math.min(i, 2)], t = texts[u];
         d.responses.push({ id: 1000 + d.responses.length, survey_id: 100 + i, user_id: u,
-          answers: { q1: s[0], q2: s[1], q3: s[2], q4: t[0], q5: t[1], q6: t[2], q7: t[3], q8: t[4], q9: t[5] },
+          answers: { q1: s[0], q3: s[2], q4: t[0], q5: t[1], q6: t[2], q7: t[3], q8: t[4], q9: t[5] },
           submitted_at: `${m}-28T09:00:00Z`, updated_at: `${m}-28T09:00:00Z` });
         if (i < 3) {
           const base = { s1: 5, s2: 4, s3: 3 }[u];

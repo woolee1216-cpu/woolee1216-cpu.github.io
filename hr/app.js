@@ -251,8 +251,10 @@
     const opinionQs = s.questions.filter(q => q.opinion);
     const ops = [];
     resps.forEach(r => opinionQs.forEach(q => { const v = r.answers[q.id]; if (v) ops.push({ who: profiles.find(p => p.id === r.user_id), q, v }); }));
-    const choiceQ = s.questions.find(q => q.type === 'choice');
-    const worry = choiceQ ? resps.filter(r => ['고민 중', '아니다'].includes(r.answers[choiceQ.id])) : [];
+    // 근무 의향 질문: 보기 중 뒤의 2개(잘 모르겠다 / 다른 길 고민)를 고르면 면담 대상으로 표시
+    const choiceQ = s.questions.find(q => q.retention) || s.questions.find(q => q.type === 'choice');
+    const worryOpts = choiceQ ? (choiceQ.options || []).slice(-2) : [];
+    const worry = choiceQ ? resps.filter(r => worryOpts.includes(r.answers[choiceQ.id])) : [];
 
     shell('dash', `
       <div class="row"><div><h1>대시보드</h1><p class="sub">${h(s.title)} · ${s.status === 'open' ? '<span class="badge b-good">진행 중</span>' : '<span class="badge b-gray">마감</span>'}</p></div></div>
@@ -267,7 +269,7 @@
         <div class="card"><h2>미제출 직원 (${notDone.length})</h2>
           ${notDone.length ? `<table>${notDone.map(p => `<tr><td>${h(p.name)}</td><td class="muted">${h(p.dept || '')} ${h(p.position || '')}</td></tr>`).join('')}</table>`
             : '<p class="muted">모두 제출했습니다 👏</p>'}
-          ${worry.length ? `<div class="note" style="margin:14px 0 0">⚠ 계속 근무 의향 "고민 중/아니다": <b>${worry.map(r => h(profiles.find(p => p.id === r.user_id)?.name)).join(', ')}</b> — 면담을 권합니다.</div>` : ''}
+          ${worry.length ? `<div class="note" style="margin:14px 0 0">⚠ 1년 뒤 모습 "${worryOpts.map(h).join(' / ')}" 선택: <b>${worry.map(r => h(profiles.find(p => p.id === r.user_id)?.name)).join(', ')}</b> — 면담을 권합니다.</div>` : ''}
         </div>
         <div class="card"><h2>직원 의견·건의 (${ops.length})</h2>
           ${ops.length ? ops.slice(0, 8).map(o => `<div style="margin-bottom:10px"><div class="small muted">${h(o.who?.name)} · ${h(o.q.label)}</div><div class="answer">${h(o.v)}</div></div>`).join('')
@@ -298,7 +300,7 @@
         <label class="f"><span>대상 월</span><input type="month" name="m" value="${m}"></label>
         <label class="f"><span>제목</span><input name="t" value="${mo}월 월말평가"></label>
         <label class="f"><span>마감일</span><input type="date" name="d" value="${m}-${pad(last)}"></label>
-        <p class="muted small">${surveys[0] ? `${h(surveys[0].title)}의 질문을 복사합니다.` : '기본 질문 9개로 시작합니다.'} 만든 뒤 수정할 수 있어요.</p>
+        <p class="muted small">${surveys[0] ? `${h(surveys[0].title)}의 질문을 복사합니다.` : '기본 질문 8개로 시작합니다.'} 만든 뒤 수정할 수 있어요.</p>
         <div class="foot"><button class="btn" data-close>취소</button><button class="btn primary" id="ok">만들기</button></div>`, (el, close) => {
         $('[name=m]', el).onchange = (e) => { const v = e.target.value; if (!v) return; const [yy, mm] = v.split('-').map(Number);
           $('[name=t]', el).value = `${mm}월 월말평가`; $('[name=d]', el).value = `${v}-${pad(new Date(yy, mm, 0).getDate())}`; };
@@ -558,7 +560,7 @@
     const selfY = avg(rows.map(x => x.self)), admY = avg(rows.map(x => x.adm));
     const con = cons.find(c => c.year === year) || {};
     const years = [...new Set([year, new Date().getFullYear(), ...surveys.map(s => +s.month.slice(0, 4))])].sort().reverse();
-    const choiceQ = (s) => s.questions.find(q => q.type === 'choice');
+    const choiceQ = (s) => s.questions.find(q => q.retention) || s.questions.find(q => q.type === 'choice');
 
     shell('report', `
       <div class="row no-print" style="margin-bottom:10px">
@@ -574,7 +576,7 @@
         <div class="tile"><div class="k">연간 등급</div><div class="v">${gradeOf(admY) || '–'}</div></div>
       </div>
       <div class="card"><h2>월별 점수 추이</h2>${chart(rows)}</div>
-      <div class="card tbl-wrap"><h2>월별 요약</h2><table><tr><th>월</th><th>제출</th><th class="num">자기평가</th><th class="num">관리자평가</th><th>등급</th><th>근무 의향</th><th>관리자 코멘트</th></tr>
+      <div class="card tbl-wrap"><h2>월별 요약</h2><table><tr><th>월</th><th>제출</th><th class="num">자기평가</th><th class="num">관리자평가</th><th>등급</th><th>1년 뒤 모습</th><th>관리자 코멘트</th></tr>
         ${rows.filter(x => x.s || x.ev).map(x => `<tr><td>${+x.m.slice(5)}월</td><td>${x.r ? '✓' : '<span class="muted">✗</span>'}</td>
           <td class="num">${f1(x.self)}</td><td class="num">${f1(x.adm)}</td><td>${x.ev?.grade ? `<span class="grade">${x.ev.grade}</span>` : ''}</td>
           <td class="small">${x.r && choiceQ(x.s) ? h(x.r.answers[choiceQ(x.s).id] || '') : ''}</td><td class="small">${h(x.ev?.comment || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">기록 없음</td></tr>'}
