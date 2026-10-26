@@ -1,0 +1,16 @@
+# 월말평가 사이트(/hr) 데이터베이스가 무료 요금제에서 잠들지 않도록 매일 한 번 깨움
+name: 월말평가 DB 깨우기
+
+on:
+  schedule:
+    - cron: "0 1 * * *"   # 한국시간 오전 10시
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -X POST "https://edypglxzgbsiqqjhmcku.supabase.co/rest/v1/rpc/setup_needed" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkeXBnbHh6Z2JzaXFxamhtY2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NzM4MzQsImV4cCI6MjEwODU0OTgzNH0.RtWcNdUzgnAp4eC8oJ-sm_7jBsw64Cliw0KOLaQBTgE" \
+            -H "Content-Type: application/json" -d '{}'

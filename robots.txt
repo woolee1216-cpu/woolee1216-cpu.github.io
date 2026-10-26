@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
+Disallow: /hr/
 Sitemap: https://tiregaragemotors2011.com/sitemap.xml
