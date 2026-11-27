@@ -6,7 +6,7 @@ on:
     - cron: "0 0,9 * * *"   # 한국시간 오전 9시, 오후 6시
   workflow_dispatch:         # Actions 화면에서 "Run workflow" 로 바로 실행
   push:
-    paths: ["site_config.json", "data/exclude.txt", "build_site.py"]
+    paths: ["site_config.json", "data/exclude.txt", "build_site.py", "data/reels_meta.json", "data/guides.json"]
 
 permissions:
   contents: write
