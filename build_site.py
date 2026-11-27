@@ -30,6 +30,9 @@ IMG_DIR = ROOT / "images"
 POST_DIR = ROOT / "posts"
 REEL_DIR = ROOT / "reels"
 REELS_TXT = ROOT / "data" / "reels.txt"
+REELS_META = ROOT / "data" / "reels_meta.json"  # 릴스 제목·설명 (tools/make_reels_meta.py 가 만듦)
+GUIDES = ROOT / "data" / "guides.json"  # 자주 묻는 질문 페이지 내용
+GUIDE_DIR = ROOT / "guide"
 BLOG_DATA = ROOT / "data" / "blog.json"
 BLOG_IMG_MAX = 30  # 블로그마다 최신 글 몇 개까지 사진을 받아둘지
 GRAPH = "https://graph.facebook.com/v21.0"
@@ -124,8 +127,10 @@ def load_reels(posts: dict) -> list[dict]:
     new = [{"code": p["permalink"].rstrip("/").rsplit("/", 1)[-1], "views": ""} for p in linked]
     rows = [r for r in new if r["code"] not in known] + rows
     excludes = load_excludes()
+    meta = json.loads(REELS_META.read_text(encoding="utf-8")) if REELS_META.exists() else {}
     out = []
     for r in rows:
+        r.update(meta.get(r["code"], {}))
         if r["code"] in excludes:
             continue
         img = IMG_DIR / f"reel_{r['code']}.jpg"
@@ -352,6 +357,14 @@ article .body{white-space:pre-line}.tags{color:var(--muted);font-size:14px}
 .reel-modal.on{display:flex}.reel-modal iframe{width:min(400px,94vw);height:min(720px,80vh);border:0;border-radius:12px;background:#fff}
 .reel-modal button{position:absolute;top:10px;right:14px;background:none;border:0;color:#fff;font-size:36px;cursor:pointer}
 .reel-modal a{color:#fff;font-size:14px}
+.reels.full{grid-template-columns:repeat(2,1fr);gap:18px 12px}
+@media(min-width:700px){.reels.full{grid-template-columns:repeat(4,1fr)}}
+.reels .rc h3{font-size:15px;line-height:1.4;margin:8px 0 4px}
+.reels .rc p{font-size:13px;line-height:1.5;color:var(--muted);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.reels .rc time{font-size:12px;color:var(--muted)}
+.guide-list a{display:block;text-decoration:none}.guide-list a:hover .card{border-color:var(--accent)}
+.answer{background:var(--card);border-left:5px solid var(--accent);border-radius:8px;padding:16px 18px;font-size:17px}
+.guide h2{font-size:21px;margin-top:34px}.guide li{margin:6px 0}.guide .faq dt{font-weight:700;margin-top:16px}.guide .faq dd{margin:4px 0 0}
 .navbtns{margin-top:20px}.navbtns .btn{background:#03c75a}.navbtns .btn.line{background:transparent;color:var(--ink);border:1px solid var(--line)}
 """
 
@@ -379,7 +392,7 @@ def page(cfg: dict, title: str, desc: str, body: str, path: str, prefix: str = "
 <style>{CSS}</style>
 </head><body>
 <header class="top"><div class="wrap"><a href="{prefix}index.html">{esc(cfg['name'])}</a>
-<nav><a href="{prefix}index.html#services">작업</a><a href="{prefix}posts/index.html">작업사례</a><a href="{prefix}reels/index.html">릴스</a><a href="{prefix}index.html#reviews">후기</a><a href="{prefix}index.html#contact">오시는 길</a></nav></div></header>
+<nav><a href="{prefix}index.html#services">작업</a><a href="{prefix}posts/index.html">작업사례</a><a href="{prefix}reels/index.html">릴스</a><a href="{prefix}guide/index.html">자주 묻는 질문</a><a href="{prefix}index.html#reviews">후기</a><a href="{prefix}index.html#contact">오시는 길</a></nav></div></header>
 {body}
 {footer(cfg)}
 </body></html>"""
@@ -426,19 +439,28 @@ def post_cards(cfg: dict, items: list[dict], prefix: str) -> str:
     return '<div class="posts">' + "".join(out) + "</div>"
 
 
-def reel_grid(cfg: dict, reels: list[dict], prefix: str, total: int) -> str:
+def reel_tile(cfg: dict, r: dict, prefix: str, full: bool) -> str:
+    title = r.get("title") or f'{cfg["name"]} 작업 영상'
+    a = (f'<a href="https://www.instagram.com/reel/{esc(r["code"])}/" data-code="{esc(r["code"])}" target="_blank" rel="noopener" title="{esc(title)}">'
+         f'<img src="{prefix}{esc(r["image"])}" alt="{esc(title)} - {esc(cfg["name"])} 릴스" loading="lazy">'
+         + (f'<span>▷ {esc(r["views"])}</span>' if r.get("views") and r["views"] != "0" else "") + "</a>")
+    if not full:
+        return a
+    # 릴스 페이지: 영상 아래에 제목·설명을 글로 적어 둠 (AI 검색은 영상이 아니라 글을 읽음)
+    when = f'<time datetime="{esc(r["date"])}">{esc(r["date"].replace("-", "."))}</time>' if r.get("date") else ""
+    desc = f'<p>{esc(r["desc"])}</p>' if r.get("desc") else ""
+    return f'<div class="rc">{a}<h3>{esc(title)}</h3>{desc}{when}</div>'
+
+
+def reel_grid(cfg: dict, reels: list[dict], prefix: str, total: int, full: bool = False) -> str:
     """인스타그램 프로필 화면처럼 보이는 릴스 칸. 누르면 홈페이지 안에서 바로 재생."""
     ig = cfg.get("links", {}).get("instagram", "")
     handle = ig.rstrip("/").rsplit("/", 1)[-1] if ig else ""
-    tiles = "".join(
-        f'<a href="https://www.instagram.com/reel/{esc(r["code"])}/" data-code="{esc(r["code"])}" target="_blank" rel="noopener">'
-        f'<img src="{prefix}{esc(r["image"])}" alt="{esc(cfg["name"])} 작업 영상" loading="lazy">'
-        + (f'<span>▷ {esc(r["views"])}</span>' if r.get("views") else "") + "</a>"
-        for r in reels if r.get("image"))
+    tiles = "".join(reel_tile(cfg, r, prefix, full) for r in reels if r.get("image"))
     follow = f'<a class="ig-follow" href="{esc(ig)}" target="_blank" rel="noopener">팔로우</a>' if ig else ""
     return f"""<div class="ig"><div class="ig-head"><div class="ig-av"><span>TG</span></div>
 <div><div class="ig-name">{esc(handle)}</div><div class="ig-sub">{esc(cfg['name'])} · 릴스 {total}개</div></div>{follow}</div>
-<div class="ig-tab">▶ 릴스</div><div class="reels">{tiles}</div></div>
+<div class="ig-tab">▶ 릴스</div><div class="reels{' full' if full else ''}">{tiles}</div></div>
 <div class="reel-modal" id="reelModal"><button aria-label="닫기">×</button><iframe title="인스타그램 릴스" allow="autoplay; encrypted-media" allowfullscreen></iframe><a target="_blank" rel="noopener">인스타그램에서 보기 ›</a></div>
 <script>(function(){{var m=document.getElementById('reelModal'),f=m.querySelector('iframe'),l=m.querySelector('a');
 function close(){{m.classList.remove('on');f.src='about:blank'}}
@@ -491,6 +513,8 @@ def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dic
     posts_html = (post_cards(cfg, recent, "") + '<p style="margin-top:16px"><a class="btn" href="posts/index.html">작업사례 전체 보기</a></p>'
                   if recent else '<p class="muted">작업 사진이 곧 올라옵니다.</p>')
 
+    guides = load_guides()
+    guides_html = (f'<section id="faq"><div class="wrap"><h2>자주 묻는 질문</h2>{guide_cards(guides, "")}</div></section>' if guides else "")
     n_reels = int(cfg.get("reels_on_home", 12))
     reels_html = (f'<section id="reels"><div class="wrap"><h2>릴스 · 작업 영상</h2>{reel_grid(cfg, reels[:n_reels], "", len(reels))}'
                   f'<p style="margin-top:16px"><a class="btn" href="reels/index.html">릴스 전체 보기 ({len(reels)}개)</a></p></div></section>'
@@ -518,6 +542,7 @@ def build_index(cfg: dict, posts: list[dict], blogs: list[dict], reels: list[dic
 </div></div>
 <section><div class="wrap"><h2>매장 소개</h2><p>{esc(cfg['description'])}</p></div></section>
 <section id="services"><div class="wrap"><h2>주요 작업</h2><div class="grid">{svc}</div></div></section>
+{guides_html}
 <section><div class="wrap"><h2>최근 작업사례</h2>{posts_html}</div></section>
 {reels_html}
 {blog_section(cfg)}
@@ -554,9 +579,113 @@ def build_post_list(cfg: dict, posts: list[dict], blogs: list[dict]) -> str:
     return page(cfg, f"작업사례 | {cfg['name']}", f"{cfg['name']} 타이어 교체·정비·오프로드 튜닝 작업사례 모음", body, "posts/index.html", "../")
 
 
+def reel_schema(cfg: dict, reels: list[dict]) -> dict:
+    """구글·AI 검색용: 릴스마다 VideoObject (제목·설명·날짜·썸네일)."""
+    items = []
+    for i, r in enumerate([r for r in reels if r.get("title") and r.get("image")][:100], 1):
+        v = {"@type": "VideoObject", "name": r["title"], "description": r.get("desc") or r["title"],
+             "thumbnailUrl": abs_url(cfg, r["image"]), "embedUrl": f'https://www.instagram.com/reel/{r["code"]}/embed/',
+             "url": f'https://www.instagram.com/reel/{r["code"]}/', "publisher": {"@type": "Organization", "name": cfg["name"]}}
+        if r.get("date"):
+            v["uploadDate"] = r["date"]
+        items.append({"@type": "ListItem", "position": i, "item": v})
+    return {"@context": "https://schema.org", "@type": "ItemList", "name": f"{cfg['name']} 작업 릴스", "itemListElement": items}
+
+
 def build_reel_list(cfg: dict, reels: list[dict]) -> str:
-    body = f'<div class="wrap"><section><h2>릴스 · 작업 영상</h2>{reel_grid(cfg, reels, "../", len(reels))}</section></div>'
-    return page(cfg, f"릴스 | {cfg['name']}", f"{cfg['name']} 타이어 교체·리프트업·오프로드 튜닝 작업 영상 모음", body, "reels/index.html", "../")
+    intro = ('<p class="muted">남양주 진접 타이어게러지모터스의 실제 작업 영상입니다. 타스만·PV5·렉스턴 스포츠·랭글러 리프트업, '
+             '오버휀다·구조변경, AT·MT 오프로드 타이어, 3D 얼라인먼트 작업을 영상과 글로 정리했습니다.</p>')
+    body = f'<div class="wrap"><section><h1 style="font-size:26px">릴스 · 작업 영상</h1>{intro}{reel_grid(cfg, reels, "../", len(reels), True)}</section></div>'
+    return page(cfg, f"릴스 · 작업 영상 | {cfg['name']}", f"{cfg['name']} 타스만·PV5·렉스턴 리프트업, 오버휀다 구조변경, 오프로드 타이어, 얼라인먼트 작업 영상 모음",
+                body, "reels/index.html", "../", reel_schema(cfg, reels))
+
+
+# ---------------------------------------------------------------- 자주 묻는 질문 (AI 검색이 그대로 인용하기 좋은 질문·답 페이지)
+def load_guides() -> list[dict]:
+    return json.loads(GUIDES.read_text(encoding="utf-8")) if GUIDES.exists() else []
+
+
+def guide_cards(guides: list[dict], prefix: str) -> str:
+    return '<div class="grid guide-list">' + "".join(
+        f'<a href="{prefix}guide/{esc(g["slug"])}.html"><div class="card"><h3>{esc(g["title"])}</h3>'
+        f'<p>{esc(g["answer"][:90])}…</p></div></a>' for g in guides) + "</div>"
+
+
+def build_guide(cfg: dict, g: dict, reels: list[dict], blogs: list[dict], guides: list[dict]) -> str:
+    secs = []
+    for sec in g.get("sections", []):
+        inner = f'<p>{esc(sec["p"])}</p>' if sec.get("p") else ""
+        if sec.get("list"):
+            inner += "<ul>" + "".join(f"<li>{esc(x)}</li>" for x in sec["list"]) + "</ul>"
+        secs.append(f'<h2>{esc(sec["h"])}</h2>{inner}')
+    faq = g.get("faq", [])
+    faq_html = ('<h2>자주 묻는 질문</h2><dl class="faq">' + "".join(f'<dt>{esc(f["q"])}</dt><dd>{esc(f["a"])}</dd>' for f in faq) + "</dl>") if faq else ""
+    kw = re.compile(g.get("reel_kw") or "$^")
+    rel = [r for r in reels if r.get("title") and r.get("image") and kw.search(r["title"] + " " + r.get("desc", ""))][:8]
+    rel_html = (f'<h2>관련 작업 영상</h2>{reel_grid(cfg, rel, "../", len(rel), True)}' if rel else "")
+    bkw = re.compile(g.get("blog_kw") or "$^")
+    bl = [b for b in blogs if bkw.search(b.get("title", ""))][:8]
+    bl_html = ('<h2>작업 후기 (네이버 블로그)</h2><ul>' + "".join(
+        f'<li><a href="{esc(b["link"])}" target="_blank" rel="noopener">{esc(full_name(b["title"]))}</a> <span class="muted">{esc(b["date"])}</span></li>'
+        for b in bl) + "</ul>") if bl else ""
+    phones = [p for p in cfg.get("phones", []) if filled(p)]
+    call = f'<p><a class="btn" href="tel:{esc(phones[0])}">📞 전화 상담 {esc(phones[0])}</a> <a class="btn ghost" href="../index.html#contact">오시는 길</a></p>' if phones else ""
+    others = [o for o in guides if o["slug"] != g["slug"]]
+    more = ('<h2>다른 질문</h2><ul>' + "".join(f'<li><a href="{esc(o["slug"])}.html">{esc(o["title"])}</a></li>' for o in others) + "</ul>") if others else ""
+    updated = g.get("updated") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    body = f"""<div class="wrap"><article class="guide">
+<p class="muted"><a href="index.html">자주 묻는 질문</a> · 마지막 수정 {esc(updated)} · {esc(cfg['name'])} (남양주 진접, 2011년부터 튜닝·정비)</p>
+<h1 style="font-size:26px;line-height:1.35">{esc(g['title'])}</h1>
+<div class="answer">{esc(g['answer'])}</div>
+{''.join(secs)}{faq_html}{call}{rel_html}{bl_html}{more}</article></div>"""
+    ld = [{"@context": "https://schema.org", "@type": "FAQPage",
+           "mainEntity": [{"@type": "Question", "name": g["title"], "acceptedAnswer": {"@type": "Answer", "text": g["answer"]}}]
+           + [{"@type": "Question", "name": f["q"], "acceptedAnswer": {"@type": "Answer", "text": f["a"]}} for f in faq]},
+          {"@context": "https://schema.org", "@type": "Article", "headline": g["title"], "description": g.get("desc", ""),
+           "dateModified": updated, "author": {"@type": "Organization", "name": cfg["name"], "url": cfg.get("site_url", "")},
+           "publisher": {"@type": "Organization", "name": cfg["name"]}}]
+    return page(cfg, f"{g['title']} | {cfg['name']}", g.get("desc") or g["answer"], body, f"guide/{g['slug']}.html", "../", ld)
+
+
+def build_guide_list(cfg: dict, guides: list[dict]) -> str:
+    body = (f'<div class="wrap"><section><h1 style="font-size:26px">자주 묻는 질문</h1>'
+            f'<p class="muted">리프트업·오버휀다·구조변경·오프로드 타이어·얼라인먼트, 손님들이 가장 많이 묻는 것을 실제 작업 사례로 답했습니다.</p>'
+            f'{guide_cards(guides, "../")}</section></div>')
+    return page(cfg, f"자주 묻는 질문 | {cfg['name']}", f"{cfg['name']} 리프트업·구조변경·오프로드 타이어·얼라인먼트 자주 묻는 질문", body, "guide/index.html", "../")
+
+
+def build_llms(cfg: dict, guides: list[dict], reels: list[dict]) -> str:
+    """AI(ChatGPT·Claude·Perplexity 등)가 가게를 빨리 이해하도록 요약한 글 파일 (llmstxt.org 형식)."""
+    phones = ", ".join(f"{l} {p}" for l, p in zip(cfg.get("phone_labels", []), cfg.get("phones", [])) if filled(p))
+    hours = " / ".join(f"{h['days']} {h['time']}" for h in cfg.get("hours", []) if filled(h.get("time")))
+    nl = chr(10)
+    svc = nl.join(f"- {s['title']}: {s['text']}" for s in cfg.get("services", []))
+    gl = nl.join(f"- [{g['title']}]({abs_url(cfg, 'guide/' + g['slug'] + '.html')}): {g['answer']}" for g in guides)
+    rl = nl.join(f"- {r['title']}" for r in reels if r.get("title"))[:6000]
+    return f"""# {cfg['name']} ({cfg.get('name_en', '')})
+
+> {cfg['description']}
+
+- 주소: {cfg.get('address', '')} (지번 {cfg.get('address_jibun', '') or '진접읍 금곡리 793'})
+- 전화: {phones}
+- 영업시간: {hours}
+- 지역: 남양주(진접·별내·다산), 구리, 의정부, 서울 동북부
+- 홈페이지: {cfg.get('site_url', '')}
+
+## 주요 작업
+{svc}
+
+## 자주 묻는 질문
+{gl}
+
+## 페이지
+- [작업사례]({abs_url(cfg, 'posts/index.html')}): 블로그 작업 후기 모음
+- [릴스 · 작업 영상]({abs_url(cfg, 'reels/index.html')}): 영상마다 차종·작업 설명
+- [자주 묻는 질문]({abs_url(cfg, 'guide/index.html')})
+
+## 최근 작업 영상 제목
+{rl}
+"""
 
 
 def build_sitemap(cfg: dict, posts: list[dict]) -> str:
@@ -565,6 +694,10 @@ def build_sitemap(cfg: dict, posts: list[dict]) -> str:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     urls = [(abs_url(cfg, ""), today), (abs_url(cfg, "posts/index.html"), today), (abs_url(cfg, "reels/index.html"), today)]
     urls += [(abs_url(cfg, f"posts/{p['id']}.html"), post_date(p).strftime("%Y-%m-%d")) for p in posts]
+    guides = load_guides()
+    if guides:
+        urls.append((abs_url(cfg, "guide/index.html"), today))
+        urls += [(abs_url(cfg, f"guide/{g['slug']}.html"), g.get("updated", today)) for g in guides]
     rows = "".join(f"<url><loc>{esc(u)}</loc><lastmod>{d}</lastmod></url>" for u, d in urls)
     return f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{rows}</urlset>'
 
@@ -608,6 +741,13 @@ def main() -> int:
     (POST_DIR / "index.html").write_text(build_post_list(cfg, ordered, blogs), encoding="utf-8")
     for p in ordered:
         (POST_DIR / f"{p['id']}.html").write_text(build_post(cfg, p), encoding="utf-8")
+    guides = load_guides()
+    if guides:
+        GUIDE_DIR.mkdir(exist_ok=True)
+        (GUIDE_DIR / "index.html").write_text(build_guide_list(cfg, guides), encoding="utf-8")
+        for g in guides:
+            (GUIDE_DIR / f"{g['slug']}.html").write_text(build_guide(cfg, g, reels, blogs, guides), encoding="utf-8")
+    (ROOT / "llms.txt").write_text(build_llms(cfg, guides, reels), encoding="utf-8")
 
     sm = build_sitemap(cfg, ordered)
     robots = "User-agent: *\nAllow: /\n"
