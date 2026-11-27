@@ -267,7 +267,7 @@ def abs_url(cfg: dict, path: str) -> str:
 
 # ---------------------------------------------------------------- 구글용 구조화 데이터
 def business_schema(cfg: dict) -> dict:
-    links = [v for k, v in cfg.get("links", {}).items() if filled(v) and k != "naver_review"]
+    links = [v for k, v in cfg.get("links", {}).items() if filled(v) and k not in ("naver_review", "google_review")]
     links += [f"https://blog.naver.com/{b['id']}" for b in cfg.get("naver_blogs", [])
               if f"https://blog.naver.com/{b['id']}" not in links]
     d = {
@@ -365,7 +365,7 @@ article .body{white-space:pre-line}.tags{color:var(--muted);font-size:14px}
 .guide-list a{display:block;text-decoration:none}.guide-list a:hover .card{border-color:var(--accent)}
 .answer{background:var(--card);border-left:5px solid var(--accent);border-radius:8px;padding:16px 18px;font-size:17px}
 .guide h2{font-size:21px;margin-top:34px}.guide li{margin:6px 0}.guide .faq dt{font-weight:700;margin-top:16px}.guide .faq dd{margin:4px 0 0}
-.navbtns{margin-top:20px}.navbtns .btn{background:#03c75a}.navbtns .btn.line{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.navbtns{margin-top:20px}.navbtns .btn{background:#03c75a}.navbtns .btn.google{background:#1a73e8}.navbtns .btn.line{background:transparent;color:var(--ink);border:1px solid var(--line)}
 """
 
 
@@ -400,7 +400,7 @@ def page(cfg: dict, title: str, desc: str, body: str, path: str, prefix: str = "
 
 def footer(cfg: dict) -> str:
     names = {"instagram": "인스타그램", "facebook": "페이스북", "naver_place": "네이버 플레이스",
-             "naver_review": "네이버 리뷰", "naver_blog": "네이버 블로그", "google_maps": "구글 지도", "youtube": "유튜브"}
+             "naver_review": "네이버 리뷰", "google_review": "구글 리뷰 쓰기", "naver_blog": "네이버 블로그", "google_maps": "구글 지도", "youtube": "유튜브"}
     links = " ".join(f'<a href="{esc(u)}" rel="noopener" target="_blank">{names.get(k, k)}</a>'
                      for k, u in cfg.get("links", {}).items() if filled(u))
     addr = esc(cfg["address"]) if filled(cfg.get("address")) else ""
@@ -481,10 +481,11 @@ def blog_buttons(cfg: dict) -> str:
 def blog_section(cfg: dict) -> str:
     links = cfg.get("links", {})
     btns = (ext(links.get("naver_review"), "네이버 방문자 리뷰 보기")
+            + ext(links.get("google_review"), "구글 리뷰 쓰기", "btn google")
             + ext(cfg.get("naver_booking") or links.get("naver_place"), "네이버 예약·길찾기")
             + blog_buttons(cfg))
     return (f'<section id="reviews"><div class="wrap"><h2>고객 후기 · 블로그</h2>'
-            f'<p class="muted">방문 고객 리뷰는 네이버에서 확인하세요. 블로그에 새 작업 후기를 쓰면 위 작업사례에도 자동으로 올라옵니다.</p>'
+            f'<p class="muted">방문 고객 리뷰는 네이버에서 확인하세요. 구글 리뷰도 한 줄 남겨주시면 큰 힘이 됩니다. 블로그에 새 작업 후기를 쓰면 위 작업사례에도 자동으로 올라옵니다.</p>'
             f'<div class="navbtns">{btns}</div></div></section>')
 
 
